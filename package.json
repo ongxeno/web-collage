@@ -1,0 +1,25 @@
+{
+  "name": "web-collage-server",
+  "version": "1.0.0",
+  "description": "Local server for Web Collage Creator",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node image-calculator.test.js",
+    "test:visual": "node visual-test.js",
+    "test:all": "npm test && npm run test:visual"
+  },
+  "dependencies": {
+    "canvas": "^3.2.0",
+    "express": "^4.18.2"
+  },
+  "keywords": [
+    "collage",
+    "photo",
+    "web",
+    "server"
+  ],
+  "author": "",
+  "license": "MIT"
+}

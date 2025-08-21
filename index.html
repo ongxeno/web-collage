@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Photo Collage</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #mainCanvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            cursor: pointer;
+        }
+        .image-list-item {
+            cursor: grab;
+            transition: all 0.2s ease;
+        }
+        .image-list-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+        .image-list-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        .image-list-item.drag-over {
+            border-color: #4f46e5;
+            background-color: #e0e7ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col min-h-screen p-4">
+
+    <div class="w-full bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-900 mb-6">Simple Photo Collage</h1>
+
+        <!-- Controls Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Left Column -->
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                        <label for="canvasWidth" class="mb-2 font-medium text-gray-700">Canvas Width (px)</label>
+                        <input type="number" id="canvasWidth" value="1200" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                    </div>
+                    <div class="flex flex-col">
+                        <label for="canvasHeight" class="mb-2 font-medium text-gray-700">Canvas Height (px)</label>
+                        <input type="number" id="canvasHeight" value="600" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                    </div>
+                </div>
+                <div class="flex flex-col">
+                    <label for="seamAngle" class="mb-2 font-medium text-gray-700">Seam Angle (<span id="angleValue">0</span>°)</label>
+                    <input type="range" id="seamAngle" min="-45" max="45" value="0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div>
+                    <label class="mb-2 font-medium text-gray-700 block">Select Images</label>
+                    <input type="file" id="imageInput" multiple accept="image/*" class="hidden">
+                    <div class="flex gap-2">
+                        <button id="browseButton" class="flex-1 px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" /></svg>
+                            Browse Files
+                        </button>
+                        <button id="reloadButton" class="px-4 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            Reload
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column -->
+            <div>
+                <!-- Image List -->
+                <div class="space-y-2">
+                    <label class="font-medium text-gray-700 block">Images Order Left -> Right</label>
+                    <div id="imageList" class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50 space-y-1">
+                        <!-- Image list items will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="bg-gray-200 rounded-lg overflow-hidden shadow-inner mb-6">
+            <canvas id="mainCanvas"></canvas>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-2">Instructions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+                <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a1.5 1.5 0 003 0m0-8V9a1.5 1.5 0 013 0v-2.5m0 0V9a1.5 1.5 0 013 0v-2.5" />
+                    </svg>
+                    <div>
+                        <strong>Drag to Pan:</strong> Click and drag on any image section to reposition it within its frame
+                    </div>
+                </div>
+                <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    </svg>
+                    <div>
+                        <strong>Scroll to Zoom:</strong> Hover over an image section and use mouse wheel to zoom in/out
+                    </div>
+                </div>
+                <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                    <div>
+                        <strong>Reorder Images:</strong> Drag and drop items in the "Images Order" list to change their sequence
+                    </div>
+                </div>
+                <div class="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <div>
+                        <strong>Adjust Angle:</strong> Use the seam angle slider to create dynamic, angled transitions between images
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Download Button -->
+        <button id="downloadButton" class="w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Download Image
+        </button>
+
+    </div>
+
+    <script>
+        // Get DOM elements
+        const canvasWidthInput = document.getElementById('canvasWidth');
+        const canvasHeightInput = document.getElementById('canvasHeight');
+        const seamAngleInput = document.getElementById('seamAngle');
+        const angleValueSpan = document.getElementById('angleValue');
+        const browseButton = document.getElementById('browseButton');
+        const reloadButton = document.getElementById('reloadButton');
+        const imageInput = document.getElementById('imageInput');
+        const downloadButton = document.getElementById('downloadButton');
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageList = document.getElementById('imageList');
+        
+        // State management
+        let loadedImages = [];
+        let hoveredImageIndex = -1;
+        let lastSelectedFiles = null; // Store the last selected files for reload
+        
+        // Drag state for canvas
+        let isDragging = false;
+        let draggedImageIndex = -1;
+        let dragStartX, dragStartY;
+
+        // Drag state for image list
+        let draggedListItem = null;
+
+        function updateImageList() {
+            imageList.innerHTML = '';
+            if (loadedImages.length === 0) {
+                imageList.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">No images selected</div>';
+                return;
+            }
+
+            loadedImages.forEach((imgData, index) => {
+                const listItem = document.createElement('div');
+                listItem.className = 'image-list-item bg-white border border-gray-200 rounded p-2 flex items-center gap-2';
+                listItem.draggable = true;
+                listItem.dataset.index = index;
+
+                listItem.innerHTML = `
+                    <div class="flex-shrink-0 w-6 h-6 bg-gray-100 rounded flex items-center justify-center text-xs font-medium text-gray-600">
+                        ${index + 1}
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="text-xs font-medium text-gray-900 truncate">${imgData.name}</div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                        </svg>
+                    </div>
+                `;
+
+                // Add drag event listeners
+                listItem.addEventListener('dragstart', handleListDragStart);
+                listItem.addEventListener('dragover', handleListDragOver);
+                listItem.addEventListener('drop', handleListDrop);
+                listItem.addEventListener('dragend', handleListDragEnd);
+                listItem.addEventListener('dragenter', handleListDragEnter);
+                listItem.addEventListener('dragleave', handleListDragLeave);
+
+                imageList.appendChild(listItem);
+            });
+        }
+
+        function handleListDragStart(event) {
+            draggedListItem = event.target;
+            draggedListItem.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/html', draggedListItem.outerHTML);
+        }
+
+        function handleListDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleListDragEnter(event) {
+            if (event.target !== draggedListItem && event.target.classList.contains('image-list-item')) {
+                event.target.classList.add('drag-over');
+            }
+        }
+
+        function handleListDragLeave(event) {
+            event.target.classList.remove('drag-over');
+        }
+
+        function handleListDrop(event) {
+            event.preventDefault();
+            const dropTarget = event.target.closest('.image-list-item');
+            
+            if (dropTarget && dropTarget !== draggedListItem) {
+                const draggedIndex = parseInt(draggedListItem.dataset.index);
+                const targetIndex = parseInt(dropTarget.dataset.index);
+                
+                // Reorder the loadedImages array
+                const draggedImage = loadedImages.splice(draggedIndex, 1)[0];
+                loadedImages.splice(targetIndex, 0, draggedImage);
+                
+                // Update the UI
+                updateImageList();
+                draw();
+            }
+            
+            // Clean up drag over effects
+            document.querySelectorAll('.image-list-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+        }
+
+        function handleListDragEnd(event) {
+            if (draggedListItem) {
+                draggedListItem.classList.remove('dragging');
+                draggedListItem = null;
+            }
+            
+            // Clean up drag over effects
+            document.querySelectorAll('.image-list-item').forEach(item => {
+                item.classList.remove('drag-over');
+            });
+        }
+
+        function getLayoutGeometry() {
+            const W = parseInt(canvasWidthInput.value, 10) || 1200;
+            const H = parseInt(canvasHeightInput.value, 10) || 600;
+            const N = loadedImages.length;
+            if (N === 0) return { W, H, N, trapezoids: [], seamLines: [] };
+
+            const angleDegrees = parseInt(seamAngleInput.value, 10);
+            const segmentWidth = W / N;
+            const angleRadians = angleDegrees * (Math.PI / 180);
+            const offsetX = Math.tan(angleRadians) * (H / 2);
+
+            let seamLines = [];
+            for (let i = 1; i < N; i++) {
+                const dotX = i * segmentWidth;
+                seamLines.push({ topX: dotX + offsetX, bottomX: dotX - offsetX });
+            }
+
+            const trapezoids = [];
+            for (let i = 0; i < N; i++) {
+                const topLeftX = (i === 0) ? 0 : seamLines[i - 1].topX;
+                const bottomLeftX = (i === 0) ? 0 : seamLines[i - 1].bottomX;
+                const topRightX = (i === N - 1) ? W : seamLines[i].topX;
+                const bottomRightX = (i === N - 1) ? W : seamLines[i].bottomX;
+                const boundingBoxX = Math.min(topLeftX, bottomLeftX);
+                const boundingBoxWidth = Math.max(topRightX, bottomRightX) - boundingBoxX;
+                trapezoids.push({ i, topLeftX, bottomLeftX, topRightX, bottomRightX, boundingBoxX, boundingBoxWidth });
+            }
+            return { W, H, N, angleDegrees, segmentWidth, seamLines, trapezoids };
+        }
+
+        /**
+         * Draws only the final, clean merged image to a given canvas context.
+         * @param {CanvasRenderingContext2D} targetCtx The context to draw on.
+         * @param {object} geometry The pre-calculated layout geometry.
+         */
+        function drawFinalImage(targetCtx, geometry) {
+            const { H, trapezoids } = geometry;
+            if (loadedImages.length === 0) return;
+
+            trapezoids.forEach((trap, i) => {
+                targetCtx.save();
+                targetCtx.beginPath();
+                targetCtx.moveTo(trap.topLeftX, 0);
+                targetCtx.lineTo(trap.bottomLeftX, H);
+                targetCtx.lineTo(trap.bottomRightX, H);
+                targetCtx.lineTo(trap.topRightX, 0);
+                targetCtx.closePath();
+                targetCtx.clip();
+
+                const imgData = loadedImages[i];
+                const img = imgData.img;
+                const zoom = imgData.zoom;
+                
+                const imgAspectRatio = img.width / img.height;
+                const boxAspectRatio = trap.boundingBoxWidth / H;
+                
+                let sWidth_at_zoom1, sHeight_at_zoom1;
+                if (imgAspectRatio > boxAspectRatio) {
+                    sHeight_at_zoom1 = img.height;
+                    sWidth_at_zoom1 = sHeight_at_zoom1 * boxAspectRatio;
+                } else {
+                    sWidth_at_zoom1 = img.width;
+                    sHeight_at_zoom1 = sWidth_at_zoom1 / boxAspectRatio;
+                }
+                
+                const sWidth = sWidth_at_zoom1 / zoom;
+                const sHeight = sHeight_at_zoom1 / zoom;
+                
+                let sx = (img.width - sWidth_at_zoom1) / 2 + imgData.offsetX;
+                let sy = (img.height - sHeight_at_zoom1) / 2 + imgData.offsetY;
+
+                targetCtx.drawImage(img, sx, sy, sWidth, sHeight, trap.boundingBoxX, 0, trap.boundingBoxWidth, H);
+                targetCtx.restore();
+            });
+        }
+
+        /**
+         * Main drawing function for the interactive canvas.
+         */
+        function draw() {
+            const geometry = getLayoutGeometry();
+            const { W, H, N, trapezoids, seamLines, segmentWidth } = geometry;
+            
+            angleValueSpan.textContent = geometry.angleDegrees;
+            canvas.width = W;
+            canvas.height = H;
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = '#f7fafc';
+            ctx.fillRect(0, 0, W, H);
+
+            if (N < 2) {
+                ctx.fillStyle = '#6b7280';
+                ctx.font = '20px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Please select 2 or more images to begin.', W / 2, H / 2);
+                return;
+            }
+
+            // Draw the actual merged image first
+            drawFinalImage(ctx, geometry);
+
+            // --- Then, draw all the UI/debug elements on top ---
+            trapezoids.forEach((trap, i) => {
+                 if (i === hoveredImageIndex) {
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([8, 6]);
+                    ctx.strokeRect(trap.boundingBoxX, 0, trap.boundingBoxWidth, H);
+                    ctx.setLineDash([]);
+                }
+            });
+
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, W, H);
+
+            for (let i = 1; i < N; i++) {
+                const dotX = i * segmentWidth;
+                const dotY = H / 2;
+                const seam = seamLines[i - 1];
+
+                ctx.beginPath(); ctx.moveTo(seam.topX, 0); ctx.lineTo(seam.bottomX, H);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = 'rgb(22, 163, 74)'; ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.arc(seam.topX, 0, 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(seam.bottomX, H, 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(dotX, dotY, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgb(79, 70, 229)'; ctx.fill();
+                ctx.lineWidth = 2; ctx.strokeStyle = 'white'; ctx.stroke();
+            }
+        }
+
+        function handleImageSelection(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            // Store the files for reload functionality
+            lastSelectedFiles = Array.from(files);
+            loadImagesFromFiles(lastSelectedFiles);
+        }
+
+        function loadImagesFromFiles(files) {
+            if (!files || files.length === 0) return;
+
+            loadedImages = [];
+            const filesToLoad = files.length;
+            let filesLoaded = 0;
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        loadedImages.push({ img: img, name: file.name, offsetX: 0, offsetY: 0, zoom: 1.0 });
+                        filesLoaded++;
+                        if (filesLoaded === filesToLoad) {
+                            loadedImages.sort((a, b) => a.name > b.name ? 1 : -1);
+                            updateImageList();
+                            draw();
+                        }
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function handleReload() {
+            if (lastSelectedFiles && lastSelectedFiles.length > 0) {
+                loadImagesFromFiles(lastSelectedFiles);
+            }
+        }
+        
+        function handleDownload() {
+            if (loadedImages.length < 2) {
+                // You could show a message here, but for now we just do nothing.
+                return;
+            }
+            const geometry = getLayoutGeometry();
+            const { W, H } = geometry;
+
+            // Create a temporary, off-screen canvas
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = W;
+            tempCanvas.height = H;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Draw the clean image to the temporary canvas
+            drawFinalImage(tempCtx, geometry);
+
+            // Trigger download
+            const link = document.createElement('a');
+            link.download = 'merged-photo.png';
+            link.href = tempCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function getMousePos(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (event.clientX - rect.left) * scaleX,
+                y: (event.clientY - rect.top) * scaleY,
+            };
+        }
+        
+        function getImageIndexAt(x, y) {
+             const { H, N, trapezoids } = getLayoutGeometry();
+             if (N < 2) return -1;
+             for (const trap of trapezoids) {
+                 ctx.beginPath();
+                 ctx.moveTo(trap.topLeftX, 0); ctx.lineTo(trap.bottomLeftX, H);
+                 ctx.lineTo(trap.bottomRightX, H); ctx.lineTo(trap.topRightX, 0);
+                 ctx.closePath();
+                 if (ctx.isPointInPath(x, y)) {
+                     return trap.i;
+                 }
+             }
+             return -1;
+        }
+
+        function clampImageOffsets(imageIndex) {
+            const { H, trapezoids } = getLayoutGeometry();
+            const imgData = loadedImages[imageIndex];
+            if (!imgData) return;
+            const trap = trapezoids[imageIndex];
+            const img = imgData.img;
+            const zoom = imgData.zoom;
+
+            const imgAspectRatio = img.width / img.height;
+            const boxAspectRatio = trap.boundingBoxWidth / H;
+
+            let sWidth_at_zoom1, sHeight_at_zoom1;
+            if (imgAspectRatio > boxAspectRatio) {
+                sHeight_at_zoom1 = img.height;
+                sWidth_at_zoom1 = sHeight_at_zoom1 * boxAspectRatio;
+            } else {
+                sWidth_at_zoom1 = img.width;
+                sHeight_at_zoom1 = sWidth_at_zoom1 / boxAspectRatio;
+            }
+            
+            const sWidth = sWidth_at_zoom1 / zoom;
+            const sHeight = sHeight_at_zoom1 / zoom;
+            const default_sx = (img.width - sWidth_at_zoom1) / 2;
+            const default_sy = (img.height - sHeight_at_zoom1) / 2;
+            const min_sx = 0;
+            const max_sx = img.width - sWidth;
+            const min_sy = 0;
+            const max_sy = img.height - sHeight;
+            const min_offsetX = min_sx - default_sx;
+            const max_offsetX = max_sx - default_sx;
+            const min_offsetY = min_sy - default_sy;
+            const max_offsetY = max_sy - default_sy;
+
+            imgData.offsetX = Math.max(min_offsetX, Math.min(max_offsetX, imgData.offsetX));
+            imgData.offsetY = Math.max(min_offsetY, Math.min(max_offsetY, imgData.offsetY));
+        }
+
+        function handleMouseDown(event) {
+            const pos = getMousePos(event);
+            const index = getImageIndexAt(pos.x, pos.y);
+            if (index !== -1) {
+                isDragging = true;
+                draggedImageIndex = index;
+                dragStartX = pos.x;
+                dragStartY = pos.y;
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+
+        function handleMouseUp(event) {
+            if (isDragging) {
+                isDragging = false;
+                draggedImageIndex = -1;
+                canvas.style.cursor = 'pointer';
+            }
+        }
+
+        function handleMouseMove(event) {
+            const pos = getMousePos(event);
+            if (isDragging) {
+                const { H, trapezoids } = getLayoutGeometry();
+                const trap = trapezoids[draggedImageIndex];
+                const imgData = loadedImages[draggedImageIndex];
+                const img = imgData.img;
+                
+                const imgAspectRatio = img.width / img.height;
+                const boxAspectRatio = trap.boundingBoxWidth / H;
+                let sWidth_at_zoom1;
+                if (imgAspectRatio > boxAspectRatio) {
+                    sWidth_at_zoom1 = img.height * boxAspectRatio;
+                } else {
+                    sWidth_at_zoom1 = img.width;
+                }
+                
+                const scale = (sWidth_at_zoom1 / imgData.zoom) / trap.boundingBoxWidth;
+                
+                const dx = pos.x - dragStartX;
+                const dy = pos.y - dragStartY;
+                
+                imgData.offsetX -= dx * scale;
+                imgData.offsetY -= dy * scale;
+                
+                clampImageOffsets(draggedImageIndex);
+
+                dragStartX = pos.x;
+                dragStartY = pos.y;
+                draw();
+            } else {
+                const index = getImageIndexAt(pos.x, pos.y);
+                canvas.style.cursor = (index !== -1) ? 'grab' : 'default';
+                if (index !== hoveredImageIndex) {
+                    hoveredImageIndex = index;
+                    draw();
+                }
+            }
+        }
+
+        function handleMouseLeave() {
+            if (hoveredImageIndex !== -1) {
+                hoveredImageIndex = -1;
+                draw();
+            }
+            if(isDragging) {
+                isDragging = false;
+                draggedImageIndex = -1;
+            }
+            canvas.style.cursor = 'default';
+        }
+
+        function handleMouseWheel(event) {
+            if (hoveredImageIndex !== -1) {
+                event.preventDefault();
+                const imgData = loadedImages[hoveredImageIndex];
+                const zoomSpeed = 0.1;
+                
+                if (event.deltaY < 0) { // Zoom in
+                    imgData.zoom = Math.min(imgData.zoom + zoomSpeed, 3.0);
+                } else { // Zoom out
+                    imgData.zoom = Math.max(imgData.zoom - zoomSpeed, 1.0);
+                }
+                
+                clampImageOffsets(hoveredImageIndex);
+                draw();
+            }
+        }
+
+        // --- Event Listeners ---
+        browseButton.addEventListener('click', () => imageInput.click());
+        reloadButton.addEventListener('click', handleReload);
+        imageInput.addEventListener('change', handleImageSelection);
+        downloadButton.addEventListener('click', handleDownload);
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseleave', handleMouseLeave);
+        canvas.addEventListener('wheel', handleMouseWheel);
+        canvasWidthInput.addEventListener('input', draw);
+        canvasHeightInput.addEventListener('input', draw);
+        seamAngleInput.addEventListener('input', draw);
+
+        window.onload = () => {
+            updateImageList();
+            draw();
+        };
+    </script>
+
+</body>
+</html>
